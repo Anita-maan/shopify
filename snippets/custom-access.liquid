@@ -1,0 +1,193 @@
+<div id="must-have-accessories" class="mt-10 max-w-4xl mx-auto space-y-4">
+  <h2 class="text-2xl font-semibold mb-4">Must-Have Accessories</h2>
+
+  {% assign accessories = collections['must-have-accessories'] %}
+  {% for product in accessories.products %}
+    {% assign default_variant = product.variants.first %}
+    <div class="accessory-card border border-gray-200 rounded-lg bg-white overflow-hidden shadow-sm">
+
+      <!-- Accordion Header -->
+      <button type="button" class="accordion-header w-full flex justify-between items-center p-4 hover:bg-gray-50">
+        <img src="{{ product.featured_image | image_url: width: 80 }}"
+             alt="{{ product.title }}"
+             class="w-16 h-16 object-cover rounded-md accessory-preview-img">
+
+        <div class="flex-1 text-center px-4">
+          <div class="text-sm font-medium leading-tight accessory-title">{{ product.title }}</div>
+          <div class="text-xs text-gray-500 mt-1 accessory-price">{{ product.price | money }}</div>
+        </div>
+
+        <div class="text-xs text-gray-400 mt-1 selected-option-name">
+          {{ default_variant.title }}
+        </div>
+
+        <svg class="accordion-icon w-6 h-6 transition-transform duration-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+          <path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+
+      <!-- Accordion Body -->
+      <div class="accordion-body overflow-hidden transition-all duration-300 px-4 bg-white" style="max-height: 0;">
+        <div class="py-4 border-t border-gray-200">
+          <div class="variant-swatches flex gap-2 flex-wrap mt-3">
+            {% for variant in product.variants %}
+              {% assign linked_product = variant.metafields.custom.products.value %}
+              {% if linked_product %}
+                <button type="button"
+                        class="swatch-btn border p-1 rounded flex flex-col items-center text-xs hover:ring-2 ring-blue-500"
+                        data-variant-id="{{ linked_product.variants.first.id }}"
+                        data-image="{{ linked_product.featured_image | image_url: width: 80 }}"
+                        data-title="{{ linked_product.title }}"
+                        data-price="{{ linked_product.price | money }}"
+                        data-available="{{ linked_product.variants.first.available | json }}"
+                        data-option-name="{{ variant.title }}"> <!-- ✅ Main product variant title -->
+                  <img src="{{ linked_product.featured_image | image_url: width: 60 }}"
+                       alt="{{ linked_product.title }}"
+                       class="w-10 h-10 object-cover rounded mb-1">
+                </button>
+              {% endif %}
+            {% endfor %}
+          </div>
+
+          <!-- Add to Cart -->
+          <form class="accessory-form mt-4">
+            <input type="hidden" name="id" value="{{ default_variant.id }}">
+            <input type="hidden" name="quantity" value="1">
+            {% if default_variant.available %}
+              <button type="submit"
+                      class="add-accessory-btn bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700">
+                Add to Cart
+              </button>
+            {% else %}
+              <button type="button"
+                      class="bg-gray-300 text-gray-700 text-sm px-4 py-2 rounded cursor-not-allowed"
+                      disabled>Sold Out</button>
+            {% endif %}
+          </form>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll('.accordion-header').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const card = btn.closest('.accessory-card');
+      const body = card.querySelector('.accordion-body');
+      const icon = btn.querySelector('.accordion-icon');
+      const isOpen = body.style.maxHeight && body.style.maxHeight !== '0px';
+
+      if (isOpen) {
+        body.style.maxHeight = '0px';
+        icon.classList.remove('rotate-180');
+      } else {
+        document.querySelectorAll('.accordion-body').forEach(other => {
+          other.style.maxHeight = '0px';
+          other.closest('.accessory-card')?.querySelector('.accordion-icon')?.classList.remove('rotate-180');
+        });
+        body.style.maxHeight = body.scrollHeight + 'px';
+        icon.classList.add('rotate-180');
+      }
+    });
+  });
+
+  document.querySelectorAll('.accessory-card').forEach(card => {
+    const swatches = card.querySelectorAll('.swatch-btn');
+    const previewImg = card.querySelector('.accessory-preview-img');
+    const title = card.querySelector('.accessory-title');
+    const price = card.querySelector('.accessory-price');
+    const input = card.querySelector('input[name="id"]');
+    const addBtn = card.querySelector('.add-accessory-btn');
+    const optionLabel = card.querySelector('.selected-option-name');
+
+    swatches.forEach(swatch => {
+      swatch.addEventListener('click', () => {
+        swatches.forEach(s => s.classList.remove('ring-2', 'ring-blue-500'));
+        swatch.classList.add('ring-2', 'ring-blue-500');
+
+        const variantId = swatch.dataset.variantId;
+        const image = swatch.dataset.image;
+        const newTitle = swatch.dataset.title;
+        const newPrice = swatch.dataset.price;
+        const available = swatch.dataset.available === 'true';
+        const optionName = swatch.dataset.optionName;
+
+        previewImg.src = image;
+        title.textContent = newTitle;
+        price.textContent = newPrice;
+        input.value = variantId;
+
+        if (optionLabel) {
+          optionLabel.textContent = optionName;
+        }
+
+        if (available) {
+          addBtn.disabled = false;
+          addBtn.textContent = 'Add to Cart';
+          addBtn.classList.remove('bg-gray-300', 'text-gray-700', 'cursor-not-allowed');
+          addBtn.classList.add('bg-blue-600', 'text-white');
+        } else {
+          addBtn.disabled = true;
+          addBtn.textContent = 'Sold Out';
+          addBtn.classList.remove('bg-blue-600', 'text-white');
+          addBtn.classList.add('bg-gray-300', 'text-gray-700', 'cursor-not-allowed');
+        }
+      });
+    });
+
+    card.querySelector('.accessory-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      fetch('/cart/add.js', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => alert(`${data.title} added to cart!`))
+      .catch(() => alert('Error adding to cart.'));
+    });
+  });
+});
+</script>
+
+<style>
+.accessory-card {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background-color: white;
+}
+.accordion-header {
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+.accordion-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+}
+.variant-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.swatch-btn img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+.add-accessory-btn[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.rotate-180 {
+  transform: rotate(180deg);
+}
+</style>
